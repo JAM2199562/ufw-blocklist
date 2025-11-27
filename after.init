@@ -29,8 +29,10 @@ set -e
 # Configuration with defaults
 threat_ipsetname="${THREAT_IPSET:-ufw-blocklist-threat}"
 geo_ipsetname="${GEO_IPSET:-ufw-blocklist-cn}"
+whitelist_ipsetname="${WHITELIST_IPSET:-ufw-blocklist-whitelist}"
 threat_seedlist="${THREAT_SEEDLIST:-/etc/ipsum.3.txt}"
 geo_seedlist="${GEO_SEEDLIST:-/etc/cn.zone}"
+whitelist_seedlist="${WHITELIST_SEEDLIST:-/etc/ufw-blocklist-whitelist.txt}"
 
 # Default settings
 minlen=1000
@@ -113,7 +115,7 @@ setup_blocklist() {
 
     iptables -A "$chain_name" -j DROP -m comment --comment "ufw-blocklist-${chain_suffix}"
 
-    # Insert rule at beginning of chain
+    # Insert rule at high priority (before UFW rules)
     if [ "$direction" = "src" ]; then
         iptables -I INPUT 1 -m set --match-set "$ipsetname" "$direction" -j "$chain_name"
     else
@@ -172,6 +174,62 @@ cleanup_blocklist() {
     fi
 }
 
+# Function to setup whitelist (highest priority - always ACCEPT)
+setup_whitelist() {
+    local ipsetname="$whitelist_ipsetname"
+    local seedlist="$whitelist_seedlist"
+
+    echo "Setting up IP whitelist..."
+
+    # Create whitelist file if not exists
+    touch "$seedlist"
+
+    # Count entries
+    seedlistcount=$(grep -v '^#' "$seedlist" | grep -v '^[[:space:]]*$' | wc -l)
+
+    if [ "$seedlistcount" -eq 0 ]; then
+        echo "  Whitelist is empty, skipping..."
+        return 0
+    fi
+
+    maxelemcount=$(expr $seedlistcount + $maxelemheadroom)
+
+    # Create whitelist ipset
+    $IPSET_EXE create "$ipsetname" hash:net family inet hashsize 1024 maxelem "$maxelemcount" -exist
+    $IPSET_EXE flush   "$ipsetname"
+
+    # Remove existing rule if exists
+    iptables -D INPUT -m set --match-set "$ipsetname" src -j ACCEPT 2>/dev/null || true
+
+    # Add entries to ipset
+    grep -v '^#' "$seedlist" | grep -v '^[[:space:]]*$' | while read ip
+    do
+        [ -z "$ip" ] && continue
+        $IPSET_EXE add "$ipsetname" "$ip" 2>/dev/null || echo "  Warning: Failed to add $ip"
+    done
+
+    # Insert ACCEPT rule at position 1 (highest priority)
+    iptables -I INPUT 1 -m set --match-set "$ipsetname" src -j ACCEPT
+
+    echo "  Whitelist loaded: $seedlistcount entries"
+}
+
+# Function to cleanup whitelist
+cleanup_whitelist() {
+    local ipsetname="$whitelist_ipsetname"
+
+    echo "Cleaning up IP whitelist..."
+
+    # Remove iptables rule
+    iptables -D INPUT -m set --match-set "$ipsetname" src -j ACCEPT 2>/dev/null || true
+
+    # Remove ipset
+    if set_exists "$ipsetname"; then
+        $IPSET_EXE flush   "$ipsetname"
+        $IPSET_EXE destroy "$ipsetname"
+    fi
+}
+
 case "$1" in
 start)
     # Check what to enable
@@ -181,6 +239,9 @@ start)
     echo "Starting ufw-blocklist..."
     echo "Threat blocking: $setup_threat"
     echo "Geographic blocking: $setup_geo"
+
+    # Setup whitelist first (highest priority)
+    setup_whitelist
 
     # Setup threat IP blocking
     if [ "$setup_threat" = "yes" ]; then
@@ -217,17 +278,40 @@ stop)
         echo "Cleaning up geographic IP blocking..."
         cleanup_blocklist "$geo_ipsetname" "cn" "src"
     fi
+
+    # Cleanup whitelist
+    if set_exists "$whitelist_ipsetname"; then
+        cleanup_whitelist
+    fi
     ;;
 
 status)
     echo "=== UFW Blocklist Status ==="
 
+    # Show whitelist status if it exists
+    if set_exists "$whitelist_ipsetname"; then
+        echo "--- IP Whitelist (Highest Priority) ---"
+        $IPSET_EXE list "$whitelist_ipsetname" -t
+        iptables -L -nvx | grep "$whitelist_ipsetname" | grep 'match-set'
+        echo ""
+        echo "Whitelist entries:"
+        $IPSET_EXE list "$whitelist_ipsetname" | grep -E '^[0-9]' | head -20
+        local count=$($IPSET_EXE list "$whitelist_ipsetname" | grep -E '^[0-9]' | wc -l)
+        if [ "$count" -gt 20 ]; then
+            echo "... and $((count - 20)) more entries"
+        fi
+    else
+        echo "--- IP Whitelist: Not created or empty"
+    fi
+
     # Show threat IP set status if it exists
     if set_exists "$threat_ipsetname"; then
+        echo ""
         echo "--- Threat IP Set ---"
         $IPSET_EXE list "$threat_ipsetname" -t
         iptables -L -nvx | grep "$threat_ipsetname" | grep 'match-set'
     else
+        echo ""
         echo "--- Threat IP Set: Not created or disabled"
     fi
 
