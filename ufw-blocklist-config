@@ -82,7 +82,7 @@ get_user_choice() {
 
     while true; do
         echo -n "$prompt [$default]: "
-        read choice
+        read -r choice
         choice="${choice:-$default}"
         case "$choice" in
             [Yy]|[Nn]) break ;;
@@ -103,7 +103,7 @@ get_numeric_choice() {
 
     while true; do
         echo -n "$prompt [$default]: "
-        read choice
+        read -r choice
         choice="${choice:-$default}"
 
         if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge "$min" ] && [ "$choice" -le "$max" ]; then
