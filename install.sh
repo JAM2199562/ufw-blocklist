@@ -271,24 +271,21 @@ configure_uw() {
 # Function to show configuration menu
 show_config_menu() {
     while true; do
+        clear
         echo ""
         echo "==================== UFW 防火墙阻止列表配置 ===================="
         echo ""
         echo "当前配置："
         echo "  1. 威胁情报阻止: $ENABLE_THREAT_BLOCKING"
         echo "  2. 地理位置阻止: $ENABLE_GEO_BLOCKING"
-        echo "  3. 威胁情报源: $THREAT_URL"
-        echo "  4. 地理位置源: $GEO_URL"
         echo ""
         echo "操作选项："
-        echo "  1) 启用/禁用威胁情报阻止"
-        echo "  2) 启用/禁用地理位置阻止"
-        echo "  3) 修改威胁情报源地址"
-        echo "  4) 修改地理位置源地址"
-        echo "  s) 保存配置并退出"
-        echo "  q) 不保存直接退出"
+        echo "  1) 切换威胁情报阻止状态"
+        echo "  2) 切换地理位置阻止状态"
+        echo "  s) 保存配置并返回"
+        echo "  q) 不保存直接返回"
         echo ""
-        read -p "请选择操作 [1-4/s/q]: " choice
+        read -p "请选择操作 [1-2/s/q]: " choice
 
         case "$choice" in
             1)
@@ -299,6 +296,7 @@ show_config_menu() {
                     ENABLE_THREAT_BLOCKING="yes"
                     echo "已启用威胁情报阻止"
                 fi
+                sleep 1
                 ;;
             2)
                 if [ "$ENABLE_GEO_BLOCKING" = "yes" ]; then
@@ -308,32 +306,22 @@ show_config_menu() {
                     ENABLE_GEO_BLOCKING="yes"
                     echo "已启用地理位置阻止"
                 fi
-                ;;
-            3)
-                read -p "请输入新的威胁情报源地址: " new_url
-                if [ -n "$new_url" ]; then
-                    THREAT_URL="$new_url"
-                    echo "威胁情报源已更新"
-                fi
-                ;;
-            4)
-                read -p "请输入新的地理位置源地址: " new_url
-                if [ -n "$new_url" ]; then
-                    GEO_URL="$new_url"
-                    echo "地理位置源已更新"
-                fi
+                sleep 1
                 ;;
             s|S)
                 save_config
                 echo "配置已保存到 $CONFIG_FILE"
+                sleep 2
                 break
                 ;;
             q|Q)
                 echo "退出配置菜单（未保存更改）"
+                sleep 1
                 break
                 ;;
             *)
                 echo "无效选择，请重试"
+                sleep 1
                 ;;
         esac
     done
@@ -462,6 +450,7 @@ show_summary() {
 # Function to show main menu
 show_main_menu() {
     while true; do
+        clear
         echo ""
         echo "╔══════════════════════════════════════════════════════════════╗"
         echo "║              UFW Blocklist 管理程序 v$VERSION                    ║"
@@ -470,18 +459,15 @@ show_main_menu() {
         echo ""
         echo "请选择操作："
         echo ""
-        echo "  1) 完整安装"
+        echo "  1) 安装"
         echo "  2) 配置管理"
-        echo "  3) 备份现有配置"
-        echo "  4) 检查系统要求"
-        echo "  5) 显示版本信息"
-        echo "  6) 退出"
+        echo "  3) 退出"
         echo ""
-        read -p "请输入选项 [1-6]: " choice
+        read -p "请输入选项 [1-3]: " choice
 
         case "$choice" in
             1)
-                echo ""
+                clear
                 print_status "$GREEN" "
 ╔══════════════════════════════════════════════════════════════╗
 ║              UFW Blocklist 安装程序 v$VERSION                    ║
@@ -499,34 +485,18 @@ show_main_menu() {
                 read -p "按回车键返回主菜单..."
                 ;;
             2)
+                clear
                 load_config
                 show_config_menu
                 ;;
             3)
-                backup_existing
-                echo ""
-                read -p "按回车键返回主菜单..."
-                ;;
-            4)
-                check_requirements
-                echo ""
-                read -p "按回车键返回主菜单..."
-                ;;
-            5)
-                echo ""
-                echo "UFW Blocklist 安装程序 v$VERSION"
-                echo "兼容 Ubuntu 和 Debian 系统"
-                echo ""
-                read -p "按回车键返回主菜单..."
-                ;;
-            6)
+                clear
                 echo ""
                 echo "再见！"
                 exit 0
                 ;;
             *)
-                echo ""
-                print_error "无效选项，请输入 1-6"
+                print_error "无效选项，请输入 1-3"
                 sleep 1
                 ;;
         esac
