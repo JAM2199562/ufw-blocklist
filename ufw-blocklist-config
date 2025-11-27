@@ -245,7 +245,7 @@ configure_default_strategy() {
     echo
 
     local strategy_choice
-    strategy_choice=$(get_user_choice "Choose default strategy (1/2)" "1")
+    strategy_choice=$(get_numeric_choice "Choose default strategy (1-2)" 1 2 1)
     if [[ "$strategy_choice" = "2" ]]; then
         DEFAULT_STRATEGY="complete"
     else
