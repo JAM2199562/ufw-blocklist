@@ -30,9 +30,11 @@ set -e
 threat_ipsetname="${THREAT_IPSET:-ufw-blocklist-threat}"
 geo_ipsetname="${GEO_IPSET:-ufw-blocklist-cn}"
 whitelist_ipsetname="${WHITELIST_IPSET:-ufw-blocklist-whitelist}"
+cloudflare_ipsetname="${CLOUDFLARE_IPSET:-ufw-blocklist-cloudflare}"
 threat_seedlist="${THREAT_SEEDLIST:-/etc/ipsum.3.txt}"
 geo_seedlist="${GEO_SEEDLIST:-/etc/cn.zone}"
 whitelist_seedlist="${WHITELIST_SEEDLIST:-/etc/ufw-blocklist-whitelist.txt}"
+cloudflare_seedlist="${CLOUDFLARE_SEEDLIST:-/etc/cloudflare-ips.txt}"
 
 # Default settings
 minlen=1000
@@ -230,18 +232,97 @@ cleanup_whitelist() {
     fi
 }
 
+# Function to setup Cloudflare whitelist (auto-download from official API)
+setup_cloudflare_whitelist() {
+    local ipsetname="$cloudflare_ipsetname"
+    local seedlist="$cloudflare_seedlist"
+
+    echo "Setting up Cloudflare IP whitelist..."
+
+    # Download Cloudflare IPs from official API
+    local ipv4_url="${CLOUDFLARE_IPV4_URL:-https://www.cloudflare.com/ips-v4}"
+    local ipv6_url="${CLOUDFLARE_IPV6_URL:-https://www.cloudflare.com/ips-v6}"
+
+    # Download IPv4 ranges
+    if curl -sS -f --connect-timeout 10 "$ipv4_url" -o "$seedlist" 2>/dev/null; then
+        echo "  Downloaded Cloudflare IPv4 ranges"
+    else
+        echo "  Warning: Failed to download Cloudflare IPs from $ipv4_url"
+        # Check if old file exists
+        if [ ! -f "$seedlist" ]; then
+            echo "  No cached Cloudflare IPs found, skipping..."
+            return 1
+        fi
+        echo "  Using cached Cloudflare IPs"
+    fi
+
+    # Count entries
+    seedlistcount=$(grep -v '^#' "$seedlist" | grep -v '^[[:space:]]*$' | wc -l)
+
+    if [ "$seedlistcount" -eq 0 ]; then
+        echo "  Cloudflare IP list is empty, skipping..."
+        return 0
+    fi
+
+    maxelemcount=$(expr $seedlistcount + $maxelemheadroom)
+
+    # Create Cloudflare ipset
+    $IPSET_EXE create "$ipsetname" hash:net family inet hashsize 1024 maxelem "$maxelemcount" -exist
+    $IPSET_EXE flush   "$ipsetname"
+
+    # Remove existing rule if exists
+    iptables -D INPUT -m set --match-set "$ipsetname" src -j ACCEPT 2>/dev/null || true
+
+    # Add entries to ipset
+    grep -v '^#' "$seedlist" | grep -v '^[[:space:]]*$' | while read ip
+    do
+        [ -z "$ip" ] && continue
+        $IPSET_EXE add "$ipsetname" "$ip" 2>/dev/null || echo "  Warning: Failed to add $ip"
+    done
+
+    # Insert ACCEPT rule at position 2 (after manual whitelist, before blocklists)
+    iptables -I INPUT 2 -m set --match-set "$ipsetname" src -j ACCEPT
+
+    echo "  Cloudflare whitelist loaded: $seedlistcount entries"
+}
+
+# Function to cleanup Cloudflare whitelist
+cleanup_cloudflare_whitelist() {
+    local ipsetname="$cloudflare_ipsetname"
+
+    echo "Cleaning up Cloudflare IP whitelist..."
+
+    # Remove iptables rule
+    iptables -D INPUT -m set --match-set "$ipsetname" src -j ACCEPT 2>/dev/null || true
+
+    # Remove ipset
+    if set_exists "$ipsetname"; then
+        $IPSET_EXE flush   "$ipsetname"
+        $IPSET_EXE destroy "$ipsetname"
+    fi
+}
+
 case "$1" in
 start)
     # Check what to enable
     setup_threat="${ENABLE_THREAT_BLOCKING:-yes}"
     setup_geo="${ENABLE_GEO_BLOCKING:-no}"
+    setup_cloudflare="${ENABLE_CLOUDFLARE_WHITELIST:-no}"
 
     echo "Starting ufw-blocklist..."
     echo "Threat blocking: $setup_threat"
     echo "Geographic blocking: $setup_geo"
+    echo "Cloudflare whitelist: $setup_cloudflare"
 
     # Setup whitelist first (highest priority)
     setup_whitelist
+
+    # Setup Cloudflare whitelist (second priority)
+    if [ "$setup_cloudflare" = "yes" ]; then
+        setup_cloudflare_whitelist
+    else
+        echo "Cloudflare whitelist is disabled"
+    fi
 
     # Setup threat IP blocking
     if [ "$setup_threat" = "yes" ]; then
@@ -279,6 +360,11 @@ stop)
         cleanup_blocklist "$geo_ipsetname" "cn" "src"
     fi
 
+    # Cleanup Cloudflare whitelist
+    if set_exists "$cloudflare_ipsetname"; then
+        cleanup_cloudflare_whitelist
+    fi
+
     # Cleanup whitelist
     if set_exists "$whitelist_ipsetname"; then
         cleanup_whitelist
@@ -302,6 +388,24 @@ status)
         fi
     else
         echo "--- IP Whitelist: Not created or empty"
+    fi
+
+    # Show Cloudflare whitelist status if it exists
+    if set_exists "$cloudflare_ipsetname"; then
+        echo ""
+        echo "--- Cloudflare IP Whitelist (CDN/Proxy) ---"
+        $IPSET_EXE list "$cloudflare_ipsetname" -t
+        iptables -L -nvx | grep "$cloudflare_ipsetname" | grep 'match-set'
+        echo ""
+        echo "Cloudflare IP ranges:"
+        $IPSET_EXE list "$cloudflare_ipsetname" | grep -E '^[0-9]' | head -20
+        local count=$($IPSET_EXE list "$cloudflare_ipsetname" | grep -E '^[0-9]' | wc -l)
+        if [ "$count" -gt 20 ]; then
+            echo "... and $((count - 20)) more entries"
+        fi
+    else
+        echo ""
+        echo "--- Cloudflare IP Whitelist: Not created or disabled"
     fi
 
     # Show threat IP set status if it exists

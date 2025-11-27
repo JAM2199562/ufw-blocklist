@@ -219,6 +219,21 @@ download_initial_data() {
         print_status "$YELLOW" "  ○ 地理位置 IP 下载已禁用"
     fi
 
+    # Download Cloudflare IPs
+    if [ "$ENABLE_CLOUDFLARE_WHITELIST" = "yes" ]; then
+        print_status "$BLUE" "  下载 Cloudflare IP 列表..."
+        if curl -sS -f "$CLOUDFLARE_IPV4_URL" -o "/etc/cloudflare-ips.txt"; then
+            local cf_count=$(wc -l < /etc/cloudflare-ips.txt)
+            print_status "$GREEN" "    ✓ 已下载 $cf_count 个 Cloudflare IP 段"
+            chmod 640 "/etc/cloudflare-ips.txt"
+        else
+            print_error "从 $CLOUDFLARE_IPV4_URL 下载 Cloudflare IP 失败"
+            exit 1
+        fi
+    else
+        print_status "$YELLOW" "  ○ Cloudflare IP 下载已禁用"
+    fi
+
     print_complete
     echo
 }
@@ -323,6 +338,11 @@ uninstall_ufw_blocklist() {
         print_status "$GREEN" "    ✓ 已删除 /etc/ufw-blocklist-whitelist.txt"
     fi
 
+    if [ -f "/etc/cloudflare-ips.txt" ]; then
+        rm -f "/etc/cloudflare-ips.txt"
+        print_status "$GREEN" "    ✓ 已删除 /etc/cloudflare-ips.txt"
+    fi
+
     # Remove module directory if empty
     if [ -d "$MODULE_DIR" ]; then
         if [ -z "$(ls -A $MODULE_DIR)" ]; then
@@ -365,14 +385,16 @@ show_config_menu() {
         echo "当前配置："
         echo "  1. 威胁情报阻止: $ENABLE_THREAT_BLOCKING"
         echo "  2. 地理位置阻止: $ENABLE_GEO_BLOCKING"
+        echo "  3. Cloudflare 白名单: $ENABLE_CLOUDFLARE_WHITELIST"
         echo ""
         echo "操作选项："
         echo "  1) 切换威胁情报阻止状态"
         echo "  2) 切换地理位置阻止状态"
+        echo "  3) 切换 Cloudflare 白名单状态"
         echo "  s) 保存配置并返回"
         echo "  q) 不保存直接返回"
         echo ""
-        read -p "请选择操作 [1-2/s/q]: " choice
+        read -p "请选择操作 [1-3/s/q]: " choice
 
         case "$choice" in
             1)
@@ -392,6 +414,16 @@ show_config_menu() {
                 else
                     ENABLE_GEO_BLOCKING="yes"
                     echo "已启用地理位置阻止"
+                fi
+                sleep 1
+                ;;
+            3)
+                if [ "$ENABLE_CLOUDFLARE_WHITELIST" = "yes" ]; then
+                    ENABLE_CLOUDFLARE_WHITELIST="no"
+                    echo "已禁用 Cloudflare 白名单"
+                else
+                    ENABLE_CLOUDFLARE_WHITELIST="yes"
+                    echo "已启用 Cloudflare 白名单"
                 fi
                 sleep 1
                 ;;
@@ -540,17 +572,22 @@ save_config() {
 THREAT_IPSET="ufw-blocklist-threat"
 GEO_IPSET="ufw-blocklist-cn"
 WHITELIST_IPSET="ufw-blocklist-whitelist"
+CLOUDFLARE_IPSET="ufw-blocklist-cloudflare"
 
 # Enable/Disable Features
 ENABLE_THREAT_BLOCKING="$ENABLE_THREAT_BLOCKING"
 ENABLE_GEO_BLOCKING="$ENABLE_GEO_BLOCKING"
+ENABLE_CLOUDFLARE_WHITELIST="$ENABLE_CLOUDFLARE_WHITELIST"
 
 # Data Sources
 THREAT_SEEDLIST="/etc/ipsum.3.txt"
 GEO_SEEDLIST="/etc/cn.zone"
 WHITELIST_SEEDLIST="/etc/ufw-blocklist-whitelist.txt"
+CLOUDFLARE_SEEDLIST="/etc/cloudflare-ips.txt"
 THREAT_URL="$THREAT_URL"
 GEO_URL="$GEO_URL"
+CLOUDFLARE_IPV4_URL="https://www.cloudflare.com/ips-v4"
+CLOUDFLARE_IPV6_URL="https://www.cloudflare.com/ips-v6"
 
 # Logging
 LOG_LEVEL="3"
@@ -567,6 +604,7 @@ load_config() {
         # Default values
         ENABLE_THREAT_BLOCKING="yes"
         ENABLE_GEO_BLOCKING="no"
+        ENABLE_CLOUDFLARE_WHITELIST="no"
         THREAT_URL="https://raw.githubusercontent.com/stamparm/ipsum/master/levels/3.txt"
         GEO_URL="http://www.ipdeny.com/ipblocks/data/countries/cn.zone"
     fi
