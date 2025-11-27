@@ -14,7 +14,8 @@
       "Bash(source:*)",
       "Bash(bash:*)",
       "Bash(cat:*)",
-      "Bash(./install.sh:*)"
+      "Bash(./install.sh:*)",
+      "Bash(ssh:*)"
     ],
     "deny": [],
     "ask": []
