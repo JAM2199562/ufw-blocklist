@@ -193,7 +193,7 @@ start)
     # Setup geographic IP blocking
     if [ "$setup_geo" = "yes" ]; then
         echo "Setting up geographic IP blocking..."
-        setup_blocklist "$geo_ipsetname" "$geo_seedlist" "cn" "dst" "CN BLOCK"
+        setup_blocklist "$geo_ipsetname" "$geo_seedlist" "cn" "src" "CN BLOCK"
     else
         echo "Geographic IP blocking is disabled"
     fi
@@ -215,7 +215,7 @@ stop)
 
     if [ "$setup_geo" = "yes" ] || set_exists "$geo_ipsetname"; then
         echo "Cleaning up geographic IP blocking..."
-        cleanup_blocklist "$geo_ipsetname" "cn" "dst"
+        cleanup_blocklist "$geo_ipsetname" "cn" "src"
     fi
     ;;
 
