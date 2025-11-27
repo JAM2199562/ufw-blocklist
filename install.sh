@@ -65,16 +65,16 @@ check_root() {
 
 # Function to check system requirements
 check_requirements() {
-    print_step "1" "Checking System Requirements"
+    print_step "1" "检查系统要求"
 
     # Check OS version (Ubuntu/Debian)
     if [ -f /etc/os-release ]; then
         . /etc/os-release
         if [[ "$ID" != "ubuntu" && "$ID" != "debian" ]]; then
-            print_error "This installer requires Ubuntu or Debian OS"
+            print_error "此安装程序需要 Ubuntu 或 Debian 操作系统"
             exit 1
         fi
-        print_status "$BLUE" "  OS: $PRETTY_NAME"
+        print_status "$BLUE" "  操作系统: $PRETTY_NAME"
 
         # Set OS-specific information
         case "$ID" in
@@ -86,27 +86,27 @@ check_requirements() {
                 ;;
         esac
     else
-        print_error "Cannot determine OS version"
+        print_error "无法确定操作系统版本"
         exit 1
     fi
 
     # Check UFW
     if ! command -v ufw >/dev/null 2>&1; then
-        print_error "UFW is not installed. Please install with: apt install ufw"
+        print_error "UFW 未安装。请使用: apt install ufw 安装"
         exit 1
     fi
     print_status "$BLUE" "  UFW: $(ufw --version | head -1)"
 
     # Check ipset
     if ! command -v ipset >/dev/null 2>&1; then
-        print_error "ipset is not installed. Please install with: apt install ipset"
+        print_error "ipset 未安装。请使用: apt install ipset 安装"
         exit 1
     fi
     print_status "$BLUE" "  ipset: $(ipset -version | head -1)"
 
     # Check curl
     if ! command -v curl >/dev/null 2>&1; then
-        print_error "curl is not installed. Please install with: apt install curl"
+        print_error "curl 未安装。请使用: apt install curl 安装"
         exit 1
     fi
     print_status "$BLUE" "  curl: $(curl --version | head -1)"
@@ -192,17 +192,17 @@ EOF
 install_scripts() {
     print_step "4" "Installing Enhanced Scripts"
 
-    # Install enhanced after.init
-    print_status "$BLUE" "  Installing enhanced UFW integration script..."
-    cp "$SCRIPT_DIR/after.init-enhanced" "$UFW_DIR/after.init"
+    # Install after.init script
+    print_status "$BLUE" "  Installing UFW integration script..."
+    cp "$SCRIPT_DIR/after.init" "$UFW_DIR/after.init"
     chmod 750 "$UFW_DIR/after.init"
-    print_status "$GREEN" "    ✓ after.init-enhanced → $UFW_DIR/after.init"
+    print_status "$GREEN" "    ✓ after.init → $UFW_DIR/after.init"
 
-    # Install enhanced cron script
-    print_status "$BLUE" "  Installing enhanced update script..."
-    cp "$SCRIPT_DIR/ufw-blocklist-enhanced" "$CRON_DIR/ufw-blocklist"
+    # Install cron script
+    print_status "$BLUE" "  Installing update script..."
+    cp "$SCRIPT_DIR/ufw-blocklist" "$CRON_DIR/ufw-blocklist"
     chmod 750 "$CRON_DIR/ufw-blocklist"
-    print_status "$GREEN" "    ✓ ufw-blocklist-enhanced → $CRON_DIR/ufw-blocklist"
+    print_status "$GREEN" "    ✓ ufw-blocklist → $CRON_DIR/ufw-blocklist"
 
     # Install configuration manager
     print_status "$BLUE" "  Installing configuration manager..."
