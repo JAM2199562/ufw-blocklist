@@ -10,7 +10,8 @@
       "mcp__serena__list_dir",
       "Bash(chmod:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(source:*)"
     ],
     "deny": [],
     "ask": []
