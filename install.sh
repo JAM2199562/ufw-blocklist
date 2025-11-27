@@ -264,16 +264,23 @@ configure_uw() {
             exit 0
         fi
 
-        # Offer to save current UFW state and temporarily disable
-        print_status "$BLUE" "  Preparing UFW for enhanced blocklist integration..."
+        # Create a simple timestamped backup directory
+        local backup_dir="/etc/ufw-backup-$(date +'%Y%m%d-%H%M%S')"
+        mkdir -p "$backup_dir"
 
-        # Export current UFW rules for potential restoration
-        local rules_backup="/tmp/ufw-rules-backup-$(date +%s)"
-        ufw status verbose > "$rules_backup" 2>/dev/null
-        print_status "$GREEN" "    ✓ Current UFW rules saved to $rules_backup"
+        # Backup current UFW rules and user.rules
+        if [ -f "/etc/ufw/user.rules" ]; then
+            cp "/etc/ufw/user.rules" "$backup_dir/"
+            print_status "$GREEN" "    ✓ Current UFW user rules backed up to $backup_dir"
+        fi
 
-        print_status "$BLUE" "  Note: You can restore original rules with:"
-        print_status "$BLUE" "    sudo ufw --force reset < $rules_backup"
+        if [ -f "/etc/ufw/after.init" ]; then
+            cp "/etc/ufw/after.init" "$backup_dir/"
+            print_status "$GREEN" "    ✓ Current after.init backed up to $backup_dir"
+        fi
+
+        print_status "$BLUE" "  Note: To restore original rules, run:"
+        print_status "$BLUE" "    sudo cp $backup_dir/* /etc/ufw/ && sudo ufw reload"
     else
         print_status "$BLUE" "  UFW is not active - safe to proceed"
     fi
@@ -293,7 +300,7 @@ get_user_choice() {
 
     while true; do
         echo -n "$prompt [$default]: "
-        read choice
+        read -r choice
         choice="${choice:-$default}"
         case "$choice" in
             [Yy]|[Nn]) break ;;
