@@ -459,72 +459,80 @@ show_summary() {
 🎉 安装成功！您的防火墙现已配备高级 IP 阻止功能。"
 }
 
-# Function to show usage
-show_usage() {
-    echo "UFW Blocklist 安装程序 v$VERSION"
-    echo "兼容 Ubuntu 和 Debian 系统"
-    echo "用法: $0 [选项]"
-    echo
-    echo "选项："
-    echo "  -h, --help          显示帮助信息"
-    echo "  -c, --check         仅检查系统要求"
-    echo "  -b, --backup        仅备份现有配置"
-    echo "  -v, --version       显示版本信息"
-    echo "  --config            配置管理菜单"
-    echo
-    echo "系统要求："
-    echo "  - Ubuntu 20.04/22.04/24.04 LTS 或 Debian"
-    echo "  - UFW (Uncomplicated Firewall)"
-    echo "  - ipset 软件包"
-    echo "  - curl 工具"
-    echo
-    echo "示例："
-    echo "  $0                  # 完整安装"
-    echo "  $0 --check          # 检查系统要求"
-    echo "  $0 --backup         # 备份现有配置"
-    echo "  $0 --config         # 配置管理"
-}
+# Function to show main menu
+show_main_menu() {
+    while true; do
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════════╗"
+        echo "║              UFW Blocklist 管理程序 v$VERSION                    ║"
+        echo "║              兼容 Ubuntu 和 Debian 系统                        ║"
+        echo "╚══════════════════════════════════════════════════════════════╝"
+        echo ""
+        echo "请选择操作："
+        echo ""
+        echo "  1) 完整安装"
+        echo "  2) 配置管理"
+        echo "  3) 备份现有配置"
+        echo "  4) 检查系统要求"
+        echo "  5) 显示版本信息"
+        echo "  6) 退出"
+        echo ""
+        read -p "请输入选项 [1-6]: " choice
 
-# Main execution logic
-case "${1:-install}" in
-    -h|--help)
-        show_usage
-        ;;
-    -v|--version)
-        echo "UFW Blocklist 安装程序 v$VERSION"
-        echo "兼容 Ubuntu 和 Debian 系统"
-        ;;
-    -c|--check)
-        check_requirements
-        ;;
-    -b|--backup)
-        backup_existing
-        ;;
-    --config)
-        check_root
-        load_config
-        show_config_menu
-        ;;
-    install|"")
-        check_root
-        print_status "$GREEN" "
+        case "$choice" in
+            1)
+                echo ""
+                print_status "$GREEN" "
 ╔══════════════════════════════════════════════════════════════╗
 ║              UFW Blocklist 安装程序 v$VERSION                    ║
 ║                      开始安装...                               ║
 ╚════════════════════════════════════════════════════════════╝"
-        echo
-        check_requirements
-        backup_existing
-        install_configuration
-        install_scripts
-        download_initial_data
-        configure_uw
-        show_summary
-        ;;
-    *)
-        print_status "$RED" "未知选项: $1"
-        echo
-        show_usage
-        exit 1
-        ;;
-esac
+                echo ""
+                check_requirements
+                backup_existing
+                install_configuration
+                install_scripts
+                download_initial_data
+                configure_uw
+                show_summary
+                echo ""
+                read -p "按回车键返回主菜单..."
+                ;;
+            2)
+                load_config
+                show_config_menu
+                ;;
+            3)
+                backup_existing
+                echo ""
+                read -p "按回车键返回主菜单..."
+                ;;
+            4)
+                check_requirements
+                echo ""
+                read -p "按回车键返回主菜单..."
+                ;;
+            5)
+                echo ""
+                echo "UFW Blocklist 安装程序 v$VERSION"
+                echo "兼容 Ubuntu 和 Debian 系统"
+                echo ""
+                read -p "按回车键返回主菜单..."
+                ;;
+            6)
+                echo ""
+                echo "再见！"
+                exit 0
+                ;;
+            *)
+                echo ""
+                print_error "无效选项，请输入 1-6"
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+# Main execution
+check_root
+show_main_menu
