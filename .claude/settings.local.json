@@ -12,7 +12,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(source:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

@@ -102,7 +102,7 @@ check_requirements() {
         print_error "ipset 未安装。请使用: apt install ipset 安装"
         exit 1
     fi
-    print_status "$BLUE" "  ipset: $(ipset -version | head -1)"
+    print_status "$BLUE" "  ipset: $(ipset --version | head -1)"
 
     # Check curl
     if ! command -v curl >/dev/null 2>&1; then
@@ -132,9 +132,9 @@ backup_existing() {
         print_status "$BLUE" "  Backed up: $UFW_DIR/after.init"
     fi
 
-    if [ -f "$CRON_DIR/ufw-blocklist-ipsum" ]; then
-        cp "$CRON_DIR/ufw-blocklist-ipsum" "$backup_dir/ufw-blocklist-ipsum.backup"
-        print_status "$BLUE" "  Backed up: $CRON_DIR/ufw-blocklist-ipsum"
+    if [ -f "$CRON_DIR/ufw-blocklist" ]; then
+        cp "$CRON_DIR/ufw-blocklist" "$backup_dir/ufw-blocklist.backup"
+        print_status "$BLUE" "  Backed up: $CRON_DIR/ufw-blocklist"
     fi
 
     print_status "$GREEN" "  Backup location: $backup_dir"
