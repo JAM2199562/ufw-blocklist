@@ -202,7 +202,7 @@ configure_update_frequencies() {
         echo
 
         local threat_freq_choice=$(get_numeric_choice "Select threat update frequency (1-2)" 1 2 1)
-        THREAT_UPDATE_FREQ=$([ "$threat_freq_choice" = "1" ] && echo "daily" || echo "weekly")
+        THREAT_UPDATE_FREQ=$([[ "$threat_freq_choice" = "1" ]] && echo "daily" || echo "weekly")
         print_status "$GREEN" "✓ Threat update frequency: $THREAT_UPDATE_FREQ"
         echo
     fi
@@ -218,7 +218,7 @@ configure_update_frequencies() {
         echo
 
         local geo_freq_choice=$(get_numeric_choice "Select geographic update frequency (1-2)" 1 2 1)
-        GEO_UPDATE_FREQ=$([ "$geo_freq_choice" = "1" ] && echo "weekly" || echo "monthly")
+        GEO_UPDATE_FREQ=$([[ "$geo_freq_choice" = "1" ]] && echo "weekly" || echo "monthly")
         print_status "$GREEN" "✓ Geographic update frequency: $GEO_UPDATE_FREQ"
         echo
     fi
@@ -244,7 +244,13 @@ configure_default_strategy() {
     echo "   - Recommended for high-security environments"
     echo
 
-    DEFAULT_STRATEGY=$([ "$(get_user_choice "Choose default strategy (1/2)" "1")" = "2" ] && echo "complete" || echo "conservative")
+    local strategy_choice
+    strategy_choice=$(get_user_choice "Choose default strategy (1/2)" "1")
+    if [[ "$strategy_choice" = "2" ]]; then
+        DEFAULT_STRATEGY="complete"
+    else
+        DEFAULT_STRATEGY="conservative"
+    fi
     print_status "$GREEN" "✓ Default strategy: $DEFAULT_STRATEGY"
     echo
 }
