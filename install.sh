@@ -42,23 +42,23 @@ print_step() {
 
 # Function to print step completion
 print_complete() {
-    print_status "$GREEN" "✓ Complete"
+    print_status "$GREEN" "✓ 完成"
 }
 
 # Function to print step warning
 print_warning() {
-    print_status "$YELLOW" "⚠ Warning: $1"
+    print_status "$YELLOW" "⚠ 警告: $1"
 }
 
 # Function to print step error
 print_error() {
-    print_status "$RED" "✗ Error: $1"
+    print_status "$RED" "✗ 错误: $1"
 }
 
 # Function to check if running as root
 check_root() {
     if [ "$EUID" -ne 0 ]; then
-        print_status "$RED" "Error: This installer must be run as root"
+        print_status "$RED" "错误：此安装程序必须以 root 身份运行"
         exit 1
     fi
 }
@@ -117,27 +117,27 @@ check_requirements() {
 
 # Function to backup existing configuration
 backup_existing() {
-    print_step "2" "Backing Up Existing Configuration"
+    print_step "2" "备份现有配置"
 
     local backup_dir="/etc/ufw-backup-$(date +'%Y%m%d-%H%M%S')"
     mkdir -p "$backup_dir"
 
     if [ -f "$CONFIG_FILE" ]; then
         cp "$CONFIG_FILE" "$backup_dir/ufw-blocklist.conf.backup"
-        print_status "$BLUE" "  Backed up: $CONFIG_FILE"
+        print_status "$BLUE" "  已备份: $CONFIG_FILE"
     fi
 
     if [ -f "$UFW_DIR/after.init" ]; then
         cp "$UFW_DIR/after.init" "$backup_dir/after.init.backup"
-        print_status "$BLUE" "  Backed up: $UFW_DIR/after.init"
+        print_status "$BLUE" "  已备份: $UFW_DIR/after.init"
     fi
 
-    if [ -f "$CRON_DIR/ufw-blocklist" ]; then
-        cp "$CRON_DIR/ufw-blocklist" "$backup_dir/ufw-blocklist.backup"
-        print_status "$BLUE" "  Backed up: $CRON_DIR/ufw-blocklist"
+    if [ -f "$CRON_DIR/ufw-blocklist-ipsum" ]; then
+        cp "$CRON_DIR/ufw-blocklist-ipsum" "$backup_dir/ufw-blocklist-ipsum.backup"
+        print_status "$BLUE" "  已备份: $CRON_DIR/ufw-blocklist-ipsum"
     fi
 
-    print_status "$GREEN" "  Backup location: $backup_dir"
+    print_status "$GREEN" "  备份位置: $backup_dir"
     print_complete
     echo
 }
@@ -224,19 +224,19 @@ download_initial_data() {
 }
 
 # Function to configure UFW
-configure_uw() {
-    print_step "6" "Configuring UFW"
+configure_ufw() {
+    print_step "6" "配置 UFW 防火墙"
 
     # Check if UFW is active
     if ufw status | grep -q "Status: active"; then
-        print_warning "UFW is currently active"
-        print_status "$YELLOW" "  This may cause temporary service interruption"
+        print_warning "UFW 当前处于激活状态"
+        print_status "$YELLOW" "  这可能会导致短暂的服务中断"
 
-        print_status "$BLUE" "  Continue? (y/N): "
+        print_status "$BLUE" "  是否继续？(y/N): "
         local proceed
         read -r proceed
         if [[ ! "$proceed" =~ ^[Yy] ]]; then
-            print_status "$YELLOW" "Installation cancelled by user"
+            print_status "$YELLOW" "用户取消安装"
             exit 0
         fi
 
@@ -247,22 +247,22 @@ configure_uw() {
         # Backup current UFW rules and user.rules
         if [ -f "/etc/ufw/user.rules" ]; then
             cp "/etc/ufw/user.rules" "$backup_dir/"
-            print_status "$GREEN" "    ✓ Current UFW user rules backed up to $backup_dir"
+            print_status "$GREEN" "    ✓ 当前 UFW 用户规则已备份到 $backup_dir"
         fi
 
         if [ -f "/etc/ufw/after.init" ]; then
             cp "/etc/ufw/after.init" "$backup_dir/"
-            print_status "$GREEN" "    ✓ Current after.init backed up to $backup_dir"
+            print_status "$GREEN" "    ✓ 当前 after.init 已备份到 $backup_dir"
         fi
 
-        print_status "$BLUE" "  Note: To restore original rules, run:"
+        print_status "$BLUE" "  注意：要恢复原始规则，请运行："
         print_status "$BLUE" "    sudo cp $backup_dir/* /etc/ufw/ && sudo ufw reload"
     else
-        print_status "$BLUE" "  UFW is not active - safe to proceed"
+        print_status "$BLUE" "  UFW 未激活 - 可以安全地继续"
     fi
 
-    print_status "$BLUE" "  Applying UFW integration..."
-    print_status "$GREEN" "    ✓ UFW integration script installed"
+    print_status "$BLUE" "  正在应用 UFW 集成..."
+    print_status "$GREEN" "    ✓ UFW 集成脚本已安装"
 
     print_complete
     echo
@@ -440,7 +440,7 @@ show_summary() {
 ║  下一步操作：                                                    ║
 ║  1. 启用防火墙: sudo ufw enable                                  ║
 ║  2. 检查状态: sudo ufw status                                    ║
-║  3. 重新配置: sudo $0 --config                                   ║
+║  3. 重新配置: 再次运行此脚本并选择"配置管理"                      ║
 ╚════════════════════════════════════════════════════════════════╝"
 
     print_status "$GREEN" "
@@ -479,7 +479,7 @@ show_main_menu() {
                 install_configuration
                 install_scripts
                 download_initial_data
-                configure_uw
+                configure_ufw
                 show_summary
                 echo ""
                 read -p "按回车键返回主菜单..."
