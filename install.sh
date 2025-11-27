@@ -268,6 +268,88 @@ configure_ufw() {
     echo
 }
 
+# Function to uninstall UFW Blocklist
+uninstall_ufw_blocklist() {
+    print_step "卸载" "卸载 UFW Blocklist"
+
+    print_status "$YELLOW" "  警告：此操作将删除所有 UFW Blocklist 相关配置和文件"
+    print_status "$BLUE" "  是否继续？(y/N): "
+    local proceed
+    read -r proceed
+    if [[ ! "$proceed" =~ ^[Yy] ]]; then
+        print_status "$YELLOW" "用户取消卸载"
+        return 0
+    fi
+
+    echo ""
+    print_status "$BLUE" "  正在停止并清理 ipset 规则..."
+
+    # Stop and cleanup ipset rules
+    if [ -f "$UFW_DIR/after.init" ]; then
+        "$UFW_DIR/after.init" stop 2>/dev/null || true
+        print_status "$GREEN" "    ✓ ipset 规则已清理"
+    fi
+
+    # Remove installed files
+    print_status "$BLUE" "  正在删除已安装的文件..."
+
+    if [ -f "$UFW_DIR/after.init" ]; then
+        rm -f "$UFW_DIR/after.init"
+        print_status "$GREEN" "    ✓ 已删除 $UFW_DIR/after.init"
+    fi
+
+    if [ -f "$CRON_DIR/ufw-blocklist-ipsum" ]; then
+        rm -f "$CRON_DIR/ufw-blocklist-ipsum"
+        print_status "$GREEN" "    ✓ 已删除 $CRON_DIR/ufw-blocklist-ipsum"
+    fi
+
+    if [ -f "$CONFIG_FILE" ]; then
+        rm -f "$CONFIG_FILE"
+        print_status "$GREEN" "    ✓ 已删除 $CONFIG_FILE"
+    fi
+
+    if [ -f "/etc/ipsum.3.txt" ]; then
+        rm -f "/etc/ipsum.3.txt"
+        print_status "$GREEN" "    ✓ 已删除 /etc/ipsum.3.txt"
+    fi
+
+    if [ -f "/etc/cn.zone" ]; then
+        rm -f "/etc/cn.zone"
+        print_status "$GREEN" "    ✓ 已删除 /etc/cn.zone"
+    fi
+
+    # Remove module directory if empty
+    if [ -d "$MODULE_DIR" ]; then
+        if [ -z "$(ls -A $MODULE_DIR)" ]; then
+            rmdir "$MODULE_DIR"
+            print_status "$GREEN" "    ✓ 已删除空模块目录 $MODULE_DIR"
+        else
+            print_status "$YELLOW" "    ○ 模块目录非空，保留 $MODULE_DIR"
+        fi
+    fi
+
+    # Reload UFW if active
+    print_status "$BLUE" "  正在重新加载 UFW..."
+    if ufw status | grep -q "Status: active"; then
+        ufw reload >/dev/null 2>&1
+        print_status "$GREEN" "    ✓ UFW 已重新加载"
+    else
+        print_status "$YELLOW" "    ○ UFW 未激活，跳过重新加载"
+    fi
+
+    print_complete
+    echo ""
+    print_status "$GREEN" "
+╔════════════════════════════════════════════════════════════════╗
+║                    卸载完成！                                    ║
+║                                                                ║
+║  UFW Blocklist 已完全卸载。                                      ║
+║                                                                ║
+║  所有配置文件、数据文件和脚本均已删除。                            ║
+║  您的 UFW 防火墙已恢复到安装前的状态。                            ║
+╚════════════════════════════════════════════════════════════════╝"
+}
+
 # Function to show configuration menu
 show_config_menu() {
     while true; do
@@ -461,9 +543,10 @@ show_main_menu() {
         echo ""
         echo "  1) 安装"
         echo "  2) 配置管理"
-        echo "  3) 退出"
+        echo "  3) 卸载"
+        echo "  4) 退出"
         echo ""
-        read -p "请输入选项 [1-3]: " choice
+        read -p "请输入选项 [1-4]: " choice
 
         case "$choice" in
             1)
@@ -491,12 +574,18 @@ show_main_menu() {
                 ;;
             3)
                 clear
+                uninstall_ufw_blocklist
+                echo ""
+                read -p "按回车键返回主菜单..."
+                ;;
+            4)
+                clear
                 echo ""
                 echo "再见！"
                 exit 0
                 ;;
             *)
-                print_error "无效选项，请输入 1-3"
+                print_error "无效选项，请输入 1-4"
                 sleep 1
                 ;;
         esac
