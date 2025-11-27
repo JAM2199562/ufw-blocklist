@@ -263,6 +263,19 @@ configure_uw() {
             print_status "$YELLOW" "Installation cancelled by user"
             exit 0
         fi
+
+        # Offer to save current UFW state and temporarily disable
+        print_status "$BLUE" "  Preparing UFW for enhanced blocklist integration..."
+
+        # Export current UFW rules for potential restoration
+        local rules_backup="/tmp/ufw-rules-backup-$(date +%s)"
+        ufw status verbose > "$rules_backup" 2>/dev/null
+        print_status "$GREEN" "    ✓ Current UFW rules saved to $rules_backup"
+
+        print_status "$BLUE" "  Note: You can restore original rules with:"
+        print_status "$BLUE" "    sudo ufw --force reset < $rules_backup"
+    else
+        print_status "$BLUE" "  UFW is not active - safe to proceed"
     fi
 
     print_status "$BLUE" "  Applying UFW integration..."
