@@ -258,7 +258,9 @@ configure_uw() {
         print_warning "UFW is currently active"
         print_status "$YELLOW" "  This may cause temporary service interruption"
 
-        local proceed=$(get_user_choice "Proceed anyway? This may temporarily affect firewall rules. (y/N)" "n")
+        print_status "$BLUE" "  Continue? (y/N): "
+        local proceed
+        read -r proceed
         if [[ ! "$proceed" =~ ^[Yy] ]]; then
             print_status "$YELLOW" "Installation cancelled by user"
             exit 0
