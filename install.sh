@@ -200,9 +200,9 @@ install_scripts() {
 
     # Install cron script
     print_status "$BLUE" "  Installing update script..."
-    cp "$SCRIPT_DIR/ufw-blocklist" "$CRON_DIR/ufw-blocklist"
-    chmod 750 "$CRON_DIR/ufw-blocklist"
-    print_status "$GREEN" "    ✓ ufw-blocklist → $CRON_DIR/ufw-blocklist"
+    cp "$SCRIPT_DIR/ufw-blocklist-ipsum" "$CRON_DIR/ufw-blocklist-ipsum"
+    chmod 750 "$CRON_DIR/ufw-blocklist-ipsum"
+    print_status "$GREEN" "    ✓ ufw-blocklist-ipsum → $CRON_DIR/ufw-blocklist-ipsum"
 
     # Install configuration manager
     print_status "$BLUE" "  Installing configuration manager..."
