@@ -318,6 +318,11 @@ uninstall_ufw_blocklist() {
         print_status "$GREEN" "    ✓ 已删除 /etc/cn.zone"
     fi
 
+    if [ -f "/etc/ufw-blocklist-whitelist.txt" ]; then
+        rm -f "/etc/ufw-blocklist-whitelist.txt"
+        print_status "$GREEN" "    ✓ 已删除 /etc/ufw-blocklist-whitelist.txt"
+    fi
+
     # Remove module directory if empty
     if [ -d "$MODULE_DIR" ]; then
         if [ -z "$(ls -A $MODULE_DIR)" ]; then
@@ -409,6 +414,121 @@ show_config_menu() {
     done
 }
 
+# Function to show whitelist management menu
+show_whitelist_menu() {
+    local WHITELIST_FILE="/etc/ufw-blocklist-whitelist.txt"
+
+    while true; do
+        clear
+        echo ""
+        echo "==================== IP 白名单管理 ===================="
+        echo ""
+        echo "说明：白名单中的 IP 地址段拥有最高优先级，不会被任何阻止规则拦截。"
+        echo ""
+
+        # Show current whitelist
+        if [ -f "$WHITELIST_FILE" ] && [ -s "$WHITELIST_FILE" ]; then
+            echo "当前白名单："
+            echo "-----------------------------------------------------------"
+            cat -n "$WHITELIST_FILE" | grep -v '^[[:space:]]*[0-9]*[[:space:]]*#' | grep -v '^[[:space:]]*[0-9]*[[:space:]]*$'
+            echo "-----------------------------------------------------------"
+        else
+            echo "当前白名单：（空）"
+        fi
+
+        echo ""
+        echo "操作选项："
+        echo "  1) 添加 IP/IP段到白名单"
+        echo "  2) 删除白名单条目"
+        echo "  3) 清空白名单"
+        echo "  4) 重新加载白名单（应用更改）"
+        echo "  q) 返回主菜单"
+        echo ""
+        read -p "请选择操作 [1-4/q]: " choice
+
+        case "$choice" in
+            1)
+                echo ""
+                echo "请输入要添加的 IP 或 IP 段（支持 CIDR 格式）"
+                echo "例如: 1.2.3.4 或 192.168.1.0/24"
+                read -p "IP 地址: " ip_input
+
+                if [ -z "$ip_input" ]; then
+                    echo "错误：IP 地址不能为空"
+                    sleep 2
+                    continue
+                fi
+
+                # Basic validation
+                if ! echo "$ip_input" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(\/[0-9]+)?$'; then
+                    echo "错误：无效的 IP 地址格式"
+                    sleep 2
+                    continue
+                fi
+
+                # Add to whitelist
+                touch "$WHITELIST_FILE"
+                echo "$ip_input" >> "$WHITELIST_FILE"
+                echo "✓ 已添加 $ip_input 到白名单"
+                echo "请选择选项 4 重新加载白名单以应用更改"
+                sleep 2
+                ;;
+            2)
+                if [ ! -f "$WHITELIST_FILE" ] || [ ! -s "$WHITELIST_FILE" ]; then
+                    echo "白名单为空"
+                    sleep 2
+                    continue
+                fi
+
+                echo ""
+                read -p "请输入要删除的行号: " line_num
+
+                if ! echo "$line_num" | grep -qE '^[0-9]+$'; then
+                    echo "错误：无效的行号"
+                    sleep 2
+                    continue
+                fi
+
+                sed -i "${line_num}d" "$WHITELIST_FILE" 2>/dev/null
+                echo "✓ 已删除第 $line_num 行"
+                echo "请选择选项 4 重新加载白名单以应用更改"
+                sleep 2
+                ;;
+            3)
+                echo ""
+                read -p "确定要清空白名单吗？(y/N): " confirm
+                if [[ "$confirm" =~ ^[Yy] ]]; then
+                    > "$WHITELIST_FILE"
+                    echo "✓ 白名单已清空"
+                    echo "请选择选项 4 重新加载白名单以应用更改"
+                else
+                    echo "已取消"
+                fi
+                sleep 2
+                ;;
+            4)
+                echo ""
+                echo "正在重新加载白名单..."
+                if [ -f "$UFW_DIR/after.init" ]; then
+                    "$UFW_DIR/after.init" stop >/dev/null 2>&1
+                    "$UFW_DIR/after.init" start >/dev/null 2>&1
+                    echo "✓ 白名单已重新加载"
+                else
+                    echo "错误：未找到 after.init 脚本"
+                fi
+                sleep 2
+                ;;
+            q|Q)
+                break
+                ;;
+            *)
+                echo "无效选择，请重试"
+                sleep 1
+                ;;
+        esac
+    done
+}
+
 # Function to save configuration
 save_config() {
     cat > "$CONFIG_FILE" << EOF
@@ -419,6 +539,7 @@ save_config() {
 # IP Set Names
 THREAT_IPSET="ufw-blocklist-threat"
 GEO_IPSET="ufw-blocklist-cn"
+WHITELIST_IPSET="ufw-blocklist-whitelist"
 
 # Enable/Disable Features
 ENABLE_THREAT_BLOCKING="$ENABLE_THREAT_BLOCKING"
@@ -427,6 +548,7 @@ ENABLE_GEO_BLOCKING="$ENABLE_GEO_BLOCKING"
 # Data Sources
 THREAT_SEEDLIST="/etc/ipsum.3.txt"
 GEO_SEEDLIST="/etc/cn.zone"
+WHITELIST_SEEDLIST="/etc/ufw-blocklist-whitelist.txt"
 THREAT_URL="$THREAT_URL"
 GEO_URL="$GEO_URL"
 
@@ -543,10 +665,11 @@ show_main_menu() {
         echo ""
         echo "  1) 安装"
         echo "  2) 配置管理"
-        echo "  3) 卸载"
-        echo "  4) 退出"
+        echo "  3) 白名单管理"
+        echo "  4) 卸载"
+        echo "  5) 退出"
         echo ""
-        read -p "请输入选项 [1-4]: " choice
+        read -p "请输入选项 [1-5]: " choice
 
         case "$choice" in
             1)
@@ -574,18 +697,22 @@ show_main_menu() {
                 ;;
             3)
                 clear
+                show_whitelist_menu
+                ;;
+            4)
+                clear
                 uninstall_ufw_blocklist
                 echo ""
                 read -p "按回车键返回主菜单..."
                 ;;
-            4)
+            5)
                 clear
                 echo ""
                 echo "再见！"
                 exit 0
                 ;;
             *)
-                print_error "无效选项，请输入 1-4"
+                print_error "无效选项，请输入 1-5"
                 sleep 1
                 ;;
         esac
