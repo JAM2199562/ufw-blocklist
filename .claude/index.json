@@ -1,0 +1,102 @@
+{
+  "timestamp": "2025-11-27T11:28:25+00:00",
+  "project": {
+    "name": "ufw-blocklist",
+    "type": "security-tools",
+    "description": "Ubuntu UFW IP blocklist integration tool",
+    "license": "GPL-3.0"
+  },
+  "statistics": {
+    "total_files": 46,
+    "scanned_files": 46,
+    "coverage_percent": 100,
+    "ignored_directories": [".git"],
+    "languages": {
+      "bash": 4,
+      "markdown": 9,
+      "json": 1,
+      "license": 1
+    }
+  },
+  "modules": [
+    {
+      "path": "/",
+      "name": "root",
+      "type": "project-root",
+      "description": "项目根目录，包含核心脚本和文档",
+      "files": ["README.md", "LICENSE", "CLAUDE.md", "after.init", "ufw-blocklist-ipsum", "after.init_run-parts"],
+      "entry_points": ["after.init", "ufw-blocklist-ipsum"],
+      "interfaces": ["UFW integration", "IPSet management"],
+      "dependencies": ["ufw", "ipset", "curl"],
+      "test_coverage": false,
+      "config_files": [],
+      "data_models": ["IP list format", "IPSet structure"]
+    },
+    {
+      "path": ".spec-workflow",
+      "name": "spec-workflow",
+      "type": "templates",
+      "description": "规范工作流模板工具",
+      "files": ["user-templates/README.md", "templates/requirements-template.md", "templates/design-template.md", "templates/tasks-template.md", "templates/product-template.md", "templates/tech-template.md", "templates/structure-template.md"],
+      "entry_points": [],
+      "interfaces": ["Template system"],
+      "dependencies": [],
+      "test_coverage": false,
+      "config_files": [],
+      "data_models": ["Template format"]
+    },
+    {
+      "path": ".claude",
+      "name": "claude",
+      "type": "ai-tools",
+      "description": "AI 工具配置和索引",
+      "files": ["settings.local.json", "index.json"],
+      "entry_points": [],
+      "interfaces": ["AI assistant configuration"],
+      "dependencies": [],
+      "test_coverage": false,
+      "config_files": ["settings.local.json"],
+      "data_models": []
+    }
+  ],
+  "core_components": {
+    "after.init": {
+      "file": "after.init",
+      "purpose": "UFW 集成脚本，管理防火墙规则和 IPSet",
+      "functions": ["start", "stop", "status", "flush-all"],
+      "key_features": ["iptables rule management", "IPSet operations", "logging"]
+    },
+    "ufw-blocklist-ipsum": {
+      "file": "ufw-blocklist-ipsum",
+      "purpose": "定时任务脚本，更新 IP 阻止列表",
+      "source": "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/3.txt",
+      "key_features": ["daily updates", "IP validation", "IPSet swapping"]
+    },
+    "after.init_run-parts": {
+      "file": "after.init_run-parts",
+      "purpose": "动态扩展版本，支持多个 IP 列表管理",
+      "key_features": ["run-parts integration", "script ordering", " extensibility"]
+    }
+  },
+  "coverage_gaps": {
+    "missing_documentation": [],
+    "uncovered_directories": [],
+    "missing_tests": ["No unit tests found"],
+    "manual_review_needed": ["Security review of iptables rules", "Performance testing with large IP lists"]
+  },
+  "truncated": false,
+  "scan_completed": true,
+  "next_scan_priorities": [
+    "添加单元测试",
+    "安全审计 iptables 规则",
+    "性能测试大规模 IP 列表",
+    "添加更详细的 API 文档"
+  ],
+  "change_log": [
+    {
+      "date": "2025-11-27T11:28:25+00:00",
+      "action": "initial_documentation_creation",
+      "details": "创建项目文档和索引结构"
+    }
+  ]
+}

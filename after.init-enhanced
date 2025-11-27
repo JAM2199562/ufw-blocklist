@@ -1,0 +1,281 @@
+#!/bin/bash
+#
+# after.init: Enhanced version supporting multiple IP sets
+# Original: if executable, called by ufw-init. See 'man ufw-framework' for
+#             details. Note that output from these scripts is not seen via the
+#             the ufw command, but instead via ufw-init.
+#
+# Copyright 2013 Canonical Ltd.
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License version 3,
+#    as published by the Free Software Foundation.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# ufw-blocklist enhanced edition: IP blocklist extension for Ubuntu ufw
+#  https://github.com/poddmo/ufw-blocklist
+#
+set -e
+
+# Load configuration if exists
+[ -f /etc/default/ufw-blocklist ] && . /etc/default/ufw-blocklist
+
+# Configuration with defaults
+threat_ipsetname="${THREAT_IPSET:-ufw-blocklist-threat}"
+geo_ipsetname="${GEO_IPSET:-ufw-blocklist-cn}"
+threat_seedlist="${THREAT_SEEDLIST:-/etc/ipsum.3.txt}"
+geo_seedlist="${GEO_SEEDLIST:-/etc/cn.zone}"
+
+# Default settings
+minlen=1000
+maxelemheadroom=128
+
+export IPSET_EXE="/sbin/ipset"
+
+# check ipset exists and is executable
+[ -x "$IPSET_EXE" ] || {
+    echo "$IPSET_EXE is not executable"
+    exit 1
+    }
+
+# Function to check if a chain exists (chain_exists <chain_name> [table])
+chain_exists()
+{
+    [ $# -lt 1 -o $# -gt 2 ] && {
+        echo "Usage: chain_exists <chain_name> [table]" >&2
+        return 1
+    }
+    local chain_name="$1" ; shift
+    [ $# -eq 1 ] && local table="--table $1"
+    iptables $table -n --list "$chain_name" >/dev/null 2>&1
+}
+
+# Function to check if an set exists (set_exists <set_name>)
+set_exists()
+{
+    [ $# -ne 1 ] && {
+        echo "Usage: set_exists <set_name>" >&2
+        return 1
+    }
+    local set_name="$1"
+    ipset list "$set_name" -name >/dev/null 2>&1
+}
+
+# Function to setup IP sets and chains for blocking
+setup_blocklist() {
+    local ipsetname="$1"
+    local seedlist="$2"
+    local chain_suffix="$3"
+    local direction="$4"  # src or dst
+    local log_prefix="$5"
+
+    # check that blocklist seed file exists
+    if [ ! -f "$seedlist" ]; then
+        echo "ufw after.init: $seedlist does not exist."
+        return 1
+    fi
+
+    # count number of entries in seed list
+    seedlistcount=$(cat "$seedlist" | wc -l)
+    maxelemcount=$(expr $seedlistcount + $maxelemheadroom)
+
+    # create an empty ipset
+    $IPSET_EXE create "$ipsetname" hash:net family inet hashsize 1024 maxelem "$maxelemcount" -exist
+    $IPSET_EXE flush   "$ipsetname"
+
+    # Create iptables chain and rule
+    local chain_name="ufw-blocklist-${chain_suffix}"
+
+    # Remove existing chain and rules if they exist
+    if chain_exists "$chain_name"; then
+        if [ "$direction" = "src" ]; then
+            iptables -D INPUT -m set --match-set "$ipsetname" "$direction" -j "$chain_name" || true
+        else
+            iptables -D OUTPUT -m set --match-set "$ipsetname" "$direction" -j "$chain_name" || true
+            iptables -D FORWARD -m set --match-set "$ipsetname" "$direction" -j "$chain_name" || true
+        fi
+        iptables -F "$chain_name"
+        iptables -X "$chain_name"
+    fi
+
+    iptables -N "$chain_name"
+
+    # Add logging rule if this is output/forward (dangerous traffic from/to compromised hosts)
+    if [ "$direction" = "dst" ]; then
+        iptables -A "$chain_name" -j LOG --log-level 3 --log-prefix "[UFW BLOCKLIST ${chain_suffix}] " -m limit --limit 3/minute --limit-burst 10
+    fi
+
+    iptables -A "$chain_name" -j DROP -m comment --comment "ufw-blocklist-${chain_suffix}"
+
+    # Insert rule at the beginning of the chain
+    if [ "$direction" = "src" ]; then
+        iptables -I INPUT 1 -m set --match-set "$ipsetname" "$direction" -j "$chain_name"
+    else
+        iptables -I OUTPUT 1 -m set --match-set "$ipsetname" "$direction" -j "$chain_name"
+        iptables -I FORWARD 1 -m set --match-set "$ipsetname" "$direction" -j "$chain_name"
+    fi
+
+    # add entries to ipset
+    (
+        # IPsum uses IPv4 addresses, IPdeny uses CIDR notation
+        if [[ "$seedlist" == *"ipsum"* ]]; then
+            # IPsum format: dotted decimal IPs
+            egrep -o "^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(|/[0-9]{1,2})" "$seedlist" |\
+            while read ip
+            	do
+            		$IPSET_EXE add "$ipsetname" "$ip"
+            	done
+        else
+            # IPdeny format: CIDR notation (already clean)
+            while read ip
+                do
+                    # Skip empty lines
+                    [ -z "$ip" ] && continue
+                    $IPSET_EXE add "$ipsetname" "$ip"
+                done < "$seedlist"
+        fi
+    ) < /dev/null &> /dev/null & disown -h
+}
+
+# Function to cleanup IP sets and chains
+cleanup_blocklist() {
+    local ipsetname="$1"
+    local chain_suffix="$2"
+    local direction="$3"  # src or dst
+
+    local chain_name="ufw-blocklist-${chain_suffix}"
+
+    # Remove iptables rules
+    if [ "$direction" = "src" ]; then
+        iptables -D INPUT -m set --match-set "$ipsetname" "$direction" -j "$chain_name" || true
+    else
+        iptables -D OUTPUT -m set --match-set "$ipsetname" "$direction" -j "$chain_name" || true
+        iptables -D FORWARD -m set --match-set "$ipsetname" "$direction" -j "$chain_name" || true
+    fi
+
+    # Remove and delete chain
+    if chain_exists "$chain_name"; then
+        iptables -F "$chain_name"
+        iptables -X "$chain_name"
+    fi
+
+    # Remove ipset
+    if set_exists "$ipsetname"; then
+        $IPSET_EXE flush   "$ipsetname"
+        $IPSET_EXE destroy "$ipsetname"
+    fi
+}
+
+case "$1" in
+start)
+    # Check what to enable
+    setup_threat="${ENABLE_THREAT_BLOCKING:-yes}"
+    setup_geo="${ENABLE_GEO_BLOCKING:-no}"
+
+    echo "Starting ufw-blocklist enhanced..."
+    echo "Threat blocking: $setup_threat"
+    echo "Geographic blocking: $setup_geo"
+
+    # Setup threat IP blocking
+    if [ "$setup_threat" = "yes" ]; then
+        echo "Setting up threat IP blocking..."
+        setup_blocklist "$threat_ipsetname" "$threat_seedlist" "threat" "src" ""
+    else
+        echo "Threat IP blocking is disabled"
+    fi
+
+    # Setup geographic IP blocking
+    if [ "$setup_geo" = "yes" ]; then
+        echo "Setting up geographic IP blocking..."
+        setup_blocklist "$geo_ipsetname" "$geo_seedlist" "cn" "dst" "CN BLOCK"
+    else
+        echo "Geographic IP blocking is disabled"
+    fi
+    ;;
+
+stop)
+    echo "Stopping ufw-blocklist enhanced..."
+
+    # Check what was enabled and cleanup accordingly
+    [ -f /etc/default/ufw-blocklist ] && . /etc/default/ufw-blocklist
+
+    setup_threat="${ENABLE_THREAT_BLOCKING:-yes}"
+    setup_geo="${ENABLE_GEO_BLOCKING:-no}"
+
+    if [ "$setup_threat" = "yes" ] || set_exists "$threat_ipsetname"; then
+        echo "Cleaning up threat IP blocking..."
+        cleanup_blocklist "$threat_ipsetname" "threat" "src"
+    fi
+
+    if [ "$setup_geo" = "yes" ] || set_exists "$geo_ipsetname"; then
+        echo "Cleaning up geographic IP blocking..."
+        cleanup_blocklist "$geo_ipsetname" "cn" "dst"
+    fi
+    ;;
+
+status)
+    echo "=== UFW Blocklist Status ==="
+
+    # Show threat IP set status if it exists
+    if set_exists "$threat_ipsetname"; then
+        echo "--- Threat IP Set ---"
+        $IPSET_EXE list "$threat_ipsetname" -t
+        iptables -L -nvx | grep "$threat_ipsetname" | grep 'match-set'
+    else
+        echo "--- Threat IP Set: Not created or disabled"
+    fi
+
+    # Show geographic IP set status if it exists
+    if set_exists "$geo_ipsetname"; then
+        echo ""
+        echo "--- Geographic IP Set ---"
+        $IPSET_EXE list "$geo_ipsetname" -t
+        iptables -L -nvx | grep "$geo_ipsetname" | grep 'match-set'
+    else
+        echo ""
+        echo "--- Geographic IP Set: Not created or disabled"
+    fi
+
+    # Show recent logs
+    echo ""
+    echo "--- Recent Logs ---"
+    journalctl | grep -i blocklist | tail -10
+    ;;
+
+flush-all)
+    echo "Flushing all ufw-blocklist entries..."
+
+    # Flush threat IP set
+    if set_exists "$threat_ipsetname"; then
+        $IPSET_EXE flush "$threat_ipsetname"
+    fi
+
+    # Flush geographic IP set
+    if set_exists "$geo_ipsetname"; then
+        $IPSET_EXE flush "$geo_ipsetname"
+    fi
+
+    # Reset iptables counters
+    ipz=$(iptables -L INPUT -nvx --line-numbers | grep ufw-blocklist-threat | awk '{print $1}')
+    [ -n "$ipz" ] && iptables -Z INPUT "$ipz"
+
+    ipz=$(iptables -L OUTPUT -nvx --line-numbers | grep ufw-blocklist-cn | awk '{print $1}')
+    [ -n "$ipz" ] && iptables -Z OUTPUT "$ipz"
+
+    ipz=$(iptables -L FORWARD -nvx --line-numbers | grep ufw-blocklist-cn | awk '{print $1}')
+    [ -n "$ipz" ] && iptables -Z FORWARD "$ipz"
+
+    echo "All entries flushed and counters reset"
+    ;;
+*)
+    echo "'$1' not supported"
+    echo "Usage: after.init-enhanced {start|stop|flush-all|status}"
+    ;;
+esac
