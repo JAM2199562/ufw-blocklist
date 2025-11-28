@@ -12,7 +12,10 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(source:*)",
-      "Bash(git reset:*)"
+      "Bash(bash:*)",
+      "Bash(cat:*)",
+      "Bash(./install.sh:*)",
+      "Bash(ssh:*)"
     ],
     "deny": [],
     "ask": []

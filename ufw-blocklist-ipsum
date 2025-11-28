@@ -103,3 +103,50 @@ if [ $RET -ne 0 ]; then
 fi
 
 $logger "finished updating $ipsetname. Old entry count: $ipsetcount New count: $cnt of $scrublistlen"
+
+# Update Cloudflare IP whitelist if enabled
+if [ -f /etc/default/ufw-blocklist ]; then
+    . /etc/default/ufw-blocklist
+
+    if [ "$ENABLE_CLOUDFLARE_WHITELIST" = "yes" ]; then
+        cf_ipsetname="${CLOUDFLARE_IPSET:-ufw-blocklist-cloudflare}"
+        cf_url="${CLOUDFLARE_IPV4_URL:-https://www.cloudflare.com/ips-v4}"
+        cf_logger="/usr/bin/logger -t ${cf_ipsetname}"
+
+        # Check if Cloudflare ipset exists
+        if "${ipset_exe}" -t list "${cf_ipsetname}" >/dev/null 2>&1; then
+            $cf_logger "starting update of ${cf_ipsetname} from ${cf_url}"
+
+            # Download Cloudflare IPs
+            cf_rawlist=$(curl -sS -f --connect-timeout 10 "$cf_url" 2>/dev/null)
+            if [ $? -eq 0 ] && [ -n "$cf_rawlist" ]; then
+                # Count entries
+                declare -a cf_list
+                readarray -t cf_list < <(echo "$cf_rawlist" | grep -v '^#' | grep -v '^[[:space:]]*$')
+                cf_count="${#cf_list[@]}"
+
+                if [ $cf_count -gt 5 ]; then
+                    # Create temporary ipset
+                    cf_tmpset="$(mktemp -u | cut -f2 -d'.')-cf-tmp"
+                    cf_maxelem=$(expr $cf_count + 50)
+                    $ipset_exe -q create "$cf_tmpset" hash:net maxelem "$cf_maxelem"
+
+                    # Add IPs to temporary set
+                    for ip in "${cf_list[@]}"; do
+                        [ -n "$ip" ] && $ipset_exe add "$cf_tmpset" "$ip" 2>/dev/null
+                    done
+
+                    # Swap sets
+                    $ipset_exe swap "$cf_tmpset" "$cf_ipsetname"
+                    $ipset_exe -q destroy "$cf_tmpset"
+
+                    $cf_logger "finished updating $cf_ipsetname. New count: $cf_count"
+                else
+                    $cf_logger "warning: Cloudflare IP count too low: $cf_count, skipping update"
+                fi
+            else
+                $cf_logger "warning: failed to download Cloudflare IPs from $cf_url"
+            fi
+        fi
+    fi
+fi
