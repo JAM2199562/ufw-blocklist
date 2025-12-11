@@ -119,7 +119,8 @@ setup_blocklist() {
 
     # Insert rule at high priority (before UFW rules)
     if [ "$direction" = "src" ]; then
-        iptables -I INPUT 1 -m set --match-set "$ipsetname" "$direction" -j "$chain_name"
+        # Modified: Insert blocking rules at position 3+ to preserve whitelist priority
+        iptables -I INPUT 3 -m set --match-set "$ipsetname" "$direction" -j "$chain_name"
     else
         iptables -I OUTPUT 1 -m set --match-set "$ipsetname" "$direction" -j "$chain_name"
         iptables -I FORWARD 1 -m set --match-set "$ipsetname" "$direction" -j "$chain_name"
